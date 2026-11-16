@@ -51,6 +51,58 @@ A solução é um conjunto de scripts de shell em volta do carregador, com estad
 
 Duas cópias de referência sustentam os diferenciais. Uma guarda o estado ao fim da versão anterior do produto, e contra ela são gerados os arquivos que os clientes aplicam. A outra guarda o estado da última publicação, e contra ela se calcula o que cada carga mudou.
 
+### 2.1 Estrutura da solução
+
+A organização abaixo é uma referência para replicar a solução, montada a partir dos componentes da tabela acima. Os nomes de pastas e arquivos são genéricos.
+
+```text
+rotina-cep/
+├── rotina.sh                  orquestrador: trava, gatilho, ordem das etapas, bloqueio e e-mail
+├── etapas/
+│   ├── validar.sh             sequência do pacote, leiaute dos arquivos e versão do carregador
+│   ├── backup.sh              backup lógico da base e fotografia dos totais
+│   ├── restaurar.sh           volta ao backup e confere que os totais bateram
+│   ├── preparar.awk           reuso de CEP, grandes usuários, bairros e localidades
+│   ├── aplicar.sh             chama o carregador na ordem certa e reprocessa as recusas
+│   ├── corrigir.sh            município do CEP, bairros sem nome, registros técnicos
+│   ├── conferir.sh            conferências impeditivas
+│   ├── auditar.awk            auditoria independente: recalcula o esperado a partir do pacote
+│   ├── exportar.sh            arquivos completos e diferenciais da versão
+│   └── publicar.sh            commit e push sem força, com uma nova tentativa
+├── lib/
+│   ├── estado.sh              leitura e gravação do estado
+│   ├── log.sh                 logs por execução, apagados depois de 90 dias
+│   └── email.sh               e-mail em HTML com resumo, avisos e logs anexos
+├── operacao/                  procedimentos da execução supervisionada
+│   ├── instalar.sh
+│   ├── ensaiar.sh             percorre o fluxo sem alterar a base e sem publicar
+│   ├── desbloquear.sh
+│   └── status.sh
+├── estado/
+│   ├── ultimo-pacote          último pacote publicado
+│   ├── versao-aberta          versão do produto em andamento
+│   ├── cargas-da-versao       pacotes aplicados nesta versão
+│   └── bloqueio               motivo do bloqueio, quando houver
+├── referencias/
+│   ├── donos-de-cep           a qual entidade cada CEP pertence
+│   ├── bairros                nomes de bairro por estado da base
+│   ├── versao-anterior/       base ao fim da versão anterior: origem dos diferenciais
+│   └── ultima-publicacao/     base na última publicação: o que cada carga mudou
+├── entrada/                   pacotes baixados da fonte
+├── testes/
+│   ├── rodar.sh               bateria com mais de 60 casos
+│   └── casos/                 vetores reais de cada falha encontrada
+└── config/                    credenciais fora dos scripts, permissão só do dono (fora do Git)
+```
+
+Para replicar em outro ambiente, o mínimo é:
+
+1. Uma base relacional com utilitário de backup lógico pela linha de comando.
+2. Um jeito de aplicar os arquivos da fonte na base (aqui, o carregador legado; pode ser um script de carga próprio).
+3. Um repositório Git para os arquivos exportados e uma chave de publicação exclusiva da rotina.
+4. Um agendador (uma execução diária basta) e um agente de e-mail no servidor.
+5. A bateria de testes rodando na mesma implementação de shell e awk do servidor.
+
 ## 3. Fluxo ponta a ponta
 
 ### 3.1 Obtenção do arquivo
@@ -300,9 +352,3 @@ flowchart TD
     X --> Y["Pessoa investiga e desbloqueia"]
     Y --> A
 ```
-
-## O que eu faria diferente
-
-- Escrever a auditoria independente antes da primeira carga, não depois da quinta rodada.
-- Executar no ambiente real desde a primeira versão. Teste local dá uma confiança que o servidor não confirma.
-- Separar no relatório, desde o início, o que mudou nesta execução do que é acumulado. Um número certo com o rótulo errado gera tanta dúvida quanto um número errado.
